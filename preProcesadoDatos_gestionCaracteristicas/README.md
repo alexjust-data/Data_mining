@@ -1,8 +1,9 @@
 
+:key: | [Visita este enlace](https://htmlpreview.github.io/?https://github.com/alexjust-data/Data_mining/blob/main/preProcesadoDatos_gestionCaracteristicas/preProcesadoDatos_gestionCaracteristicas.html) |
+| --- |
+
 # temas 
 
-| [Visita este enlace](https://htmlpreview.github.io/?https://github.com/alexjust-data/Data_mining/blob/main/preProcesadoDatos_gestionCaracteristicas/preProcesadoDatos_gestionCaracteristicas.html) |
-| --- |
 
 * “El proceso de minería de datos” 
 * “Preprocesado de los datos y gestión de características”.
