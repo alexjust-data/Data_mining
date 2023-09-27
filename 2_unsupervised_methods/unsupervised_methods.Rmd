@@ -1,0 +1,714 @@
+---
+title: 'Minería de datos 2 - Métodos no supervisados'
+author: "Autor: Alex Rodriguez Just"
+date: "Noviembre 2022"
+output:
+  html_document:
+    highlight: default
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    includes:
+      in_header: 
+  word_document: default
+  pdf_document:
+    highlight: zenburn
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!require('dplyr')) install.packages('dplyr'); require("dplyr")
+if (!require('Stat2Data')) install.packages('Stat2Data'); require("Stat2Data")
+if (!require('performance')) install.packages('performance'); require("performance")
+if (!require('GGally')) install.packages('GGally'); require("GGally")
+if (!require("factoextra")) install.packages("factoextra"); require("factoextra")
+if (!require("NbClust")) install.packages("NbClust"); require("NbClust")
+if (!require("ggplot2")) install.packages("ggplot2"); require("ggplot2")
+if (!require("gridExtra")) install.packages("gridExtra"); require("gridExtra")
+if (!require("fpc")) install.packages("fpc"); require("fpc")
+if (!require("dbscan")) install.packages("dbscan"); require("dbscan")
+if (!require("mclust")) install.packages("mclust"); require("mclust")
+library(cluster)
+library(mclust)
+```
+
+El estudio se realizará en base al juego de datos *Hawks* presente en el paquete R *Stat2Data*.  
+
+Los estudiantes y el profesorado del Cornell College en Mount Vernon, Iowa, recogieron datos durante muchos años en el mirador de halcones del lago MacBride, cerca de Iowa City, en el estado de Iowa. El conjunto de datos que analizamos aquí es un subconjunto del conjunto de datos original, utilizando sólo aquellas especies para las que había más de 10 observaciones. Los datos se recogieron en muestras aleatorias de tres especies diferentes de halcones: Colirrojo, Gavilán y Halcón de Cooper.  
+
+Hemos seleccionado este juego de datos por su parecido con el juego de datos *penguins* y por su potencial a la hora de aplicarle algoritmos de minería de datos no supervisados. Las variables numéricas en las que os basaréis son: *Wing*, *Weight*, *Culmen*, *Hallux*  
+
+
+```{r message= FALSE, warning=FALSE}
+data("Hawks")
+summary(Hawks)
+```
+
+# 
+
+Presento el juego de datos, nombre y significado de cada columna, así como las distribuciones de sus valores.  
+
+Adicionalmente realizo un estudio tipo EDA (exploratory data analysis) similar al de los ejemplos 1.1 y 1.2  ( *k-means* )  
+
+## Exploración de los datos
+
+Miramos la estructura de los datos para ver el nombre de cada columna y la definición de sus datos. Las variables numéricas en las que nos basaremos son: 
+
+> **Wing**, Medición del ala.  
+> **Weight**, Medición del peso.  
+> **Culmen**, Medida de culmen de cada halcón.  
+> **Hallux**, Medida del primer dedo de la pata en cuanto a orden.  
+> **Species**, Etiqueta de la especia de halcón.  
+
+```{r}
+str(Hawks)
+```
+
+Nos encontramos con **908** observaciones con **19** variables. Vemos datos faltantes en alguna variable de interés.
+
+## Limpieza 
+
+```{r}
+#Revisar valores non-NA en cada columna
+colSums(is.na(Hawks))
+```
+Encontramos datos faltantes en todas las variables de interés: 
+
+
+```{r}
+#Revisar valores vacíos
+void_data<-which(colSums(Hawks=="")!=0)
+names(void_data)
+```
+
+Existen valores en blanco en variables que no nos influye para nuestro análisis.
+
+
+Seleccionamos las variables de interés
+
+```{r}
+data <- Hawks[,c("Species","Wing", "Weight", "Culmen", "Hallux")]
+data[1:5, 1:5]
+```
+## Estudio por variable de interés
+
+### Wing
+
+```{r}
+# Resumen estadístico de Wing
+summary(data$Wing)
+```
+
+Tenemos un valor nulo.
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+# Generamos histograma de Wing
+hist(data$Wing)
+```
+La distribución del atributo Wing no es normal, es bimodal con mayor frecuencias de medidas de ala entre 350-400 y 150-200. 
+
+```{r, fig.width=4, fig.height=4, fig.align = "center"}
+# Generamos boxplot por etiqueta
+boxplot(data$Wing, main =colnames(data$Wing), 
+        xlab = "Especies", ylab = paste("Mediciones",colnames(data$Wing)))
+```
+
+No encontramos outliers en el atributo Wing. Ahora paso a imputar la mediana a los valores nulos.
+
+```{r}
+# Reemplazo valores nulos por la mediana
+data$Wing[is.na(data$Wing)] <- median(data$Wing, na.rm = TRUE)
+sum(is.na(data$Wing))
+```
+
+Ahora tenemos el atributo Wing sin ningún valor nulo.
+
+### Weight
+
+```{r}
+# Resumen estadístico de Wing
+summary(data$Weight)
+```
+
+Encontramos 10 valores nulos.
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+# Generamos histograma de Wing
+hist(data$Weight)
+```
+La distribución del atributo Wing no es normal, es bimodal con mayor frecuencias de peso entre 0-200 y 1000-1200.
+
+```{r, fig.width=4, fig.height=4, fig.align = "center"}
+# Generamos boxplot por etiqueta
+boxplot(data$Weight, main =colnames(data$Weight), 
+        xlab = "Especies", ylab = paste("Mediciones",colnames(data$Weight)))
+```
+
+No encontramos outliers en el atributo Weight. Ahora paso a imputar la mediana a los valores nulos.
+
+```{r}
+# Reemplazo valores nulos por la mediana
+data$Weight[is.na(data$Weight)] <- median(data$Weight, na.rm = TRUE)
+sum(is.na(data$Weight))
+```
+
+Ahora tenemos el atributo Weight sin ningún valor nulo.
+
+### Culmen
+
+```{r}
+# Resumen estadístico de Culmen
+summary(data$Culmen)
+```
+
+Encontramos 7 valores nulos.
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+# Generamos histograma de Culmen
+hist(data$Culmen)
+```
+La distribución del atributo Culmen no es normal, es bimodal con mayor frecuencias de medida entre 24-27.
+
+
+```{r, fig.width=4, fig.height=4, fig.align = "center"}
+# Generamos boxplot por etiqueta
+boxplot(data$Culmen, main =colnames(data$Culmen), 
+        xlab = "Especies", ylab = paste("Mediciones",colnames(data$Culmen)))
+```
+
+No encontramos outliers en el atributo Culmen. Ahora paso a imputar la mediana a los valores nulos.
+
+```{r}
+# Reemplazo valores nulos por la mediana
+data$Culmen[is.na(data$Culmen)] <- median(data$Culmen, na.rm = TRUE)
+sum(is.na(data$Culmen))
+```
+
+Ahora tenemos el atributo Culmen sin ningún valor nulo.
+
+
+### Hallux
+
+```{r}
+# Resumen estadístico de Hallux
+summary(data$Hallux)
+```
+
+Enocntramos 6 valores nulos.
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+# Generamos histograma de Hallux
+hist(data$Hallux)
+```
+La distribución del atributo Hallux no es normal, tiene cola a derecha.
+
+
+```{r, fig.width=8, fig.height=3, fig.align = "center"}
+# Generamos boxplot por etiqueta
+boxplot(data$Hallux, main =colnames(data$Hallux), 
+        xlab = "Mediciones", ylab = paste("Hallux",colnames(data$Hallux)), horizontal = TRUE)
+```
+
+Apreciamos outliers en la variable Hallux. Eliminamos todos los valores superiores a 70 son todos los outliers encontrados en el atributo.
+
+
+
+```{r, fig.width=8, fig.height=3, fig.align = "center"}
+data <- data[-which(data$Hallux > 70),]
+
+boxplot(data$Hallux, main =colnames(data$Hallux),
+xlab = "Mediciones", ylab = paste("Hallux",colnames(data$Hallux)), horizontal = TRUE)
+```
+Hemos eliminado los outliers, paso a imputar la mediana a los valores nulos.
+
+```{r}
+# Reemplazo valores nulos por la mediana
+data$Hallux[is.na(data$Hallux)] <- median(data$Hallux, na.rm = TRUE)
+
+summary(data)
+```
+Creo matriz de correlación, ofrece una forma rápida de comprender la fuerza de las relaciones lineales que existen entre las variables en el conjunto de datos.
+
+**Estudio de la correlación**
+
+```{r}
+#create correlation matrix
+cor(data[,2:5])
+```
+
+Las correlaciones son muy altas, dominarán el cálculo de distancia y el resultado de agrupación será más dependiente de ellos, lo que no se desea. Si nuestras variables fueran totalmente independientes no habría ningún problema. Sin embargo, si tienen algún tipo de correlación, una influye sobre la otra y esta influencia no queda bien reflejada si usamos la distancia estadística. Para corregir la distorsión provocada por la correlacionados, la agrupación basada en la distancia de Mahalanobis sería la más apropiada. 
+
+**Estudio de la covarianza**
+
+```{r}
+cov(data[,2:5])
+```
+Los valores a lo largo de las diagonales de la matriz son simplemente las varianzas de cada variable. Los otros valores de la matriz representan las covarianzas entre los distintas variables. Las cuatro variables tienen una covarianza positiva. Un número positivo para la covarianza indica que dos variables tienden a aumentar o disminuir en tándem. Por ejemplo, Weight y Wing tienen una covarianza positiva (40333.085), lo que indica que los halcones que obtienen una medición alta en peso también tienden a obtener una medición alta en tamaño de las alas. Por el contrario, los hacones que con poco peso también tienden a obtener medidas bajas de las alas.
+
+**Estandarización de los datos**
+
+Ahora escalamos datos para que las variables tengan una media de 0 y una desviación estándar de 1. De esta evitamos diferencias de escala, que alguna variable tenga mayor peso que otra, pero sin influir en las diferencias entre variables o sea que la correlación seguirá siendo alta.
+
+
+```{r}
+# normalizamos columnas objetivo
+data.norm <- scale(data[2:5])
+head(data.norm)
+```
+
+
+```{r}
+# comprovamos media y var
+summary(data.norm)
+```
+
+Todas las medias son 0, veamos las desviaciones estandard por columna:
+
+```{r}
+apply(data.norm, 2, sd)
+```
+
+
+
+```{r}
+data.norm.df = as.data.frame(data.norm)
+
+ggpairs(data.norm.df, upper = list(continuous = "density")) +
+  theme_bw()
+```
+
+De forma general podemos ver que ninguna variable de interés tiene una distribución normal, son distribuciones bimodales con media 0 y sd 1.
+
+
+## Modelado
+
+**Búsqueda de clústeres para k-means**
+
+La desventaja de los métodos de codo y silueta promedio es que solo miden una característica de agrupación global. Un método más sofisticado es usar la estadística de brecha que proporciona un procedimiento estadístico para formalizar la heurística de codo/silueta para estimar el número óptimo de grupos.
+
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+# Elbow method
+fviz_nbclust(data.norm, kmeans, method="wss") + geom_vline(xintercept=4, linetype=2)+ labs(subtitle = "Elbow method")
+
+# Silhouette method
+fviz_nbclust(data.norm, kmeans, method = "silhouette")+ labs(subtitle = "Silhouette method")
+
+# Gap statistic
+set.seed(123)
+fviz_nbclust(data.norm, kmeans, nstart = 25,  method = "gap_stat", nboot = 10)+ labs(subtitle = "Gap statistic method")
+```
+
+Podemos ver cómo diferentes métodos nos dan 4 ó 2 clusters para Kmeans. La desventaja de los métodos de codo y silueta promedio es que solo miden una característica de agrupación global. Un método más sofisticado es usar la estadística de brecha que proporciona un procedimiento estadístico para formalizar la heurística de codo/silueta para estimar el número óptimo de grupos.
+
+Vamos hacer un promedio con diferentes métodos, el paquete NbClust evalúa el promedio número de clústeres más apropiado.
+
+```{r, fig.width=8, fig.height=4, fig.align = "center"}
+nb <- NbClust(data.norm, distance = "euclidean", min.nc = 2,
+              max.nc = 10, method = "kmeans")
+```
+
+El número óptimo de clusters nos dió 2, vamos a calcular y comprobar los resultados del algoritmo con 2 clusters en tándem para cada variable entre datos normalizados y datos antes de normalizar. 
+
+
+**Aplicación de k-means con 2 clusters**
+
+
+```{r}
+# clusters para los datos sin normalizar 
+data_kmeans <- kmeans(data[2:5], 2)
+# clusters para los datos normalizados 
+data.norm_kmeans2 <- kmeans(data.norm.df, 2)
+```
+
+
+```{r, fig.width=10, fig.height=3, fig.align = "center"}
+# par() to create multiple plots at once.
+# mfrow() to create a multi-paneled plotting window. 
+par(mfrow=c(1,2))
+
+#Sacamos las gráficas para los datos sin normalizar
+for (i in 1:3){
+  for (j in (i+1):4){
+      plot1 <- ggplot(data = data.norm.df, aes(x=get(colnames(data.norm.df)[i]), 
+                                               y=get(colnames(data.norm.df)[j]), 
+                                               color = data$Species))+
+        geom_point()+
+        ggtitle("Puntos data real")+
+        xlab(colnames(data.norm)[i])+
+        ylab(colnames(data.norm)[j])+
+        theme(legend.position="bottom")
+    
+      plot2 <- ggplot(data = data.norm.df, aes(x=get(colnames(data.norm.df)[i]), 
+                                               y=get(colnames(data.norm.df)[j]), 
+                                               color = factor(data.norm_kmeans2$cluster)))+
+      geom_point()+
+      scale_colour_manual(values = c("red", "blue", "green","black"))+
+      ggtitle("Puntos cluster K-means")+
+      xlab(colnames(data.norm.df)[i])+
+      ylab(colnames(data.norm.df)[j])+
+      theme(legend.position="bottom")
+    
+    grid.arrange(plot2, plot1, nrow = 1)
+  }
+}
+```
+
+El grupo formado por los puntos negros de la clasificación K-means coincide con los puntos RT y SS de la clasificación real. Podríamos enumerar los grupos como 
+
+* grupo 1 : color azul  ( RT )
+* grupo 2 : color rojo (CH y SS)
+
+
+**validar el método de agrupamiento.**
+
+Después de ajustar los datos en conglomerados utilizando diferentes métodos de conglomerados, deseamos medir la precisión del conglomerado. En la mayoría de los casos, usamos métricas intraclúster o interclúster como medidas. Cuanto mayor sea la distancia entre grupos, mejor será, y cuanto menor sea la distancia entre grupos, mejor será. La medida *within.cluster.ss* representa la suma de cuadrados dentro de los grupos y *avg.silwidthrepresenta* el ancho promedio de la silueta .
+
+* `within.cluster.ss` la medición muestra qué tan estrechamente relacionados están los objetos en grupos; cuanto menor sea el valor, más objetos estrechamente relacionados estarán dentro del clúster.
+
+* `avg.silwidth` una medida que considera qué tan estrechamente relacionados están los objetos dentro del grupo y cómo se separan los grupos entre sí. El valor de la silueta suele oscilar entre 0 y 1; un valor más cercano a 1 sugiere que los datos están mejor agrupados.
+
+Veamos puntuaciones para **data.norm_kmeans2**:
+
+```{r message= FALSE, warning=FALSE}
+# cluster.stats : Computes a number of distance based statistics, which can be used for cluster validation,
+# avg.silwidth : silhouette information according to a given clustering in  clusters.
+
+score = cluster.stats(dist(data.norm), data.norm_kmeans2$cluster)
+score[c("within.cluster.ss","avg.silwidth")]
+```
+
+
+**Aplicación k-means 3 cluster**
+
+```{r, fig.width=10, fig.height=3, fig.align = "center"}
+# clusters para los datos normalizados 
+data.norm_kmeans3 <- kmeans(data.norm.df, 3)
+
+# par() to create multiple plots at once.
+# mfrow() to create a multi-paneled plotting window. 
+par(mfrow=c(1,2))
+
+#Sacamos las gráficas para los datos sin normalizar
+for (i in 1:3){
+  for (j in (i+1):4){
+      plot1 <- ggplot(data = data.norm.df, aes(x=get(colnames(data.norm.df)[i]), 
+                                               y=get(colnames(data.norm.df)[j]), 
+                                               color = data$Species))+
+        geom_point()+
+        ggtitle("Puntos data real")+
+        xlab(colnames(data.norm.df)[i])+
+        ylab(colnames(data.norm.df)[j])+
+        theme(legend.position="bottom")
+    
+      plot2 <- ggplot(data = data.norm.df, aes(x=get(colnames(data.norm.df)[i]), 
+                                               y=get(colnames(data.norm.df)[j]), 
+                                               color = factor(data.norm_kmeans3$cluster)))+
+        geom_point()+
+        scale_colour_manual(values = c("red", "blue", "green","black"))+
+        ggtitle("Puntos cluster K-means")+
+        xlab(colnames(data.norm.df)[i])+
+        ylab(colnames(data.norm.df)[j])+
+        theme(legend.position="bottom")
+    
+      grid.arrange(plot2, plot1, nrow = 1)
+  }
+}
+```
+
+
+Hemos creado los gráficos con los datos nomalizados para k-means, podemos ver como los puntos no están bien delimitados en referencia con los datos reales.
+Veamos puntuaciones para **data.norm_kmeans3**:
+
+
+
+```{r}
+score = cluster.stats(dist(data.norm), data.norm_kmeans3$cluster)
+score[c("within.cluster.ss","avg.silwidth")]
+```
+
+
+# 
+
+Con el juego de datos proporcionado se realiza un estudio  *DBSCAN y OPTICS* 
+
+* `minPts` define la mínima densidad aceptada alrededor de un centroide.
+* `e (eps)` es el radio de nuestras vecindades alrededor de un punto de datos p .
+
+
+```{r}
+# Distance matrix
+dd <- daisy(data.norm)
+str(dd)
+```
+
+```{r}
+quantile(dd)
+```
+
+## OPTICS
+
+Calculamos OPtics para vecindad 10 y eps=0.8
+
+
+```{r}
+res <- optics(data.norm, minPts = 10, eps = 1)
+res
+```
+
+Gráfica de alcanzabilidad
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+plot(res)
+```
+
+Sabemos que tenemos tres especies de halcones. 
+
+Determinación del valor óptimo de e (eps): El método propuesto aquí consiste en calcular las distancias de los k-vecinos más cercanos en una matriz de puntos. El valor de k  corresponde a MinPts . A continuación, k -distancias se trazan en orden ascendente y el objetivo es determinar "la rodillael "codo” que corresponde al parámetro e óptimo.
+
+Un codo corresponde a un umbral en el que se produce un cambio brusco a lo largo de la curva de distancia k . La función kNNdistplot() se puede utilizar para dibujar la gráfica de distancia k .
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+# Fuente : https://livebook.manning.com/book/machine-learning-with-r-the-tidyverse-and-mlr
+kNNdistplot(data.norm, k = 10)
+abline(h = c(0.4, 0.8))
+```
+
+Esta región donde la curva se inclina hacia arriba es el valor óptimo de épsilon (codo) a la distancia vecina más cercana en esta inflexión. Cuando la curva augmenta nos estamos alejando de la densidad y entremos es los valores de baja densidad que son los valores outlaiers. Usando este método, seleccionamos 0.4 y 0.8 como los límites inferior y superior sobre los cuales afinar el epsilon.
+
+## DBSCAN
+
+Establezco el parámetro eps en eps_cl = 0.4.
+
+```{r}
+res <- extractDBSCAN(res, eps_cl = .4)
+res
+```
+
+Podemos ver como para eps_cl = 0.4 tenemos tres clusters y 56 puntos de ruido. Veamos el plot
+
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+plot(res)
+```
+
+Observamos en el gráfico anterior como se han coloreado los 3 clusters, en negro se mantienen los valores extremos. 
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+hullplot(data.norm, res)
+```
+
+Podemos observar la cantidad de puntos que no se han clasificado.
+
+Veamos ahora la validación del método:
+
+
+```{r message= FALSE, warning=FALSE}
+score = cluster.stats(dist(data.norm), res$cluster)
+score[c("within.cluster.ss","avg.silwidth")]
+```
+
+
+Vamos a provar de clasificar con diferentes valores de eps. Probamos para eps_cl=0.8
+
+```{r}
+res <- extractDBSCAN(res, eps_cl = .8)
+res
+```
+
+Podemos observar como el algoritmo ha producido 2 clusters con más los 20 outliers.
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+plot(res)
+```
+
+
+```{r rmessage= FALSE, warning=FALSE}
+score = cluster.stats(dist(data.norm), res$cluster)
+score[c("within.cluster.ss","avg.silwidth")]
+```
+
+Ahora, habiendo analizado diferentes medidas para eps_cl y sabiendo que el data set original cuenta con 3 especies de haclones, nos aseguramos los clusters con mínimos outliers, graficamos para eps_cl=0.6 ya que genera 3 clusters con los outliers más bajos.
+
+
+```{r}
+res <- extractDBSCAN(res, eps_cl=0.6)
+res
+```
+
+Tenemos puntos 36 aouliers, un cluster con 556 puntos, un segundo grupo con 60 y un tercer grupo con 249 puntos.
+
+
+```{r, fig.width=4, fig.height=3, fig.align = "center"}
+plot(res)
+hullplot(data.norm, res)
+```
+
+
+Como hemos hecho anteriormente, pasamos a comprobar como se comporta el algoritmo en tándem para cada variable entre datos normalizados y datos reales.
+
+
+```{r, fig.width=12, fig.height=3, fig.align = "center"}
+
+for (i in 1:3){
+  for (j in (i+1):4){
+    plot1 <- ggplot(data = data.norm.df, aes(x=get(colnames(data.norm)[i]), 
+                                       y=get(colnames(data.norm)[j]), color = data$Species))+
+      geom_point()+
+      ggtitle("Valores reales")+
+      xlab(colnames(data.norm)[i])+
+      ylab(colnames(data.norm)[j])
+    
+    plot2 <- ggplot(data = data.norm.df, aes(x=get(colnames(data.norm.df)[i]), 
+                                       y=get(colnames(data.norm.df)[j]), color = factor(res$cluster)))+
+      geom_point()+
+      scale_colour_manual(values = c("red", "blue", "green","black"))+
+      ggtitle("Valores del cluster")+
+      xlab(colnames(data.norm.df)[i])+
+      ylab(colnames(data.norm.df)[j])
+    
+    grid.arrange(plot2, plot1, nrow = 1)
+  }
+}
+```
+
+Con el procedimiento DBSCAN los puntos se reproducen mejor que con K-means.
+
+* Grupo 0 : valores atípicos
+* Grupo 1 : valores de especie TR
+* Grupo 2 : valores de especie CH
+* Grupo 3 : valores de especie SS
+
+
+```{r message= FALSE, warning=FALSE}
+score = cluster.stats(dist(data.norm), res$cluster)
+score[c("within.cluster.ss","avg.silwidth")]
+```
+
+
+# 
+
+## Comparación resultados K-means y DBSCAN
+
+Probamos el algoritmo k-means para 2 y 3 clusters; medimos el resultado en ambos casos y para 2 clusters la medición de calidad de agrupamiento fue de 0.776 y para 3 clusters fue de 0.502 o sea una medida de agrupación bastante por debajo para 3 clusters que ya sabemos que originalmente así sería.
+
+* K-means 3 clusters:  0.502
+* K-means 2 clusters:  0.776
+
+ Posteriormente hicimos varios análisis con DBSCAN.
+
+* DBSCAN eps_cl=0.4 :  0.647 con 3 cluster
+* DBSCAN eps_cl=0.8 :  0.708 con 2 cluster
+* DBSCAN eps_cl=0.6 :  0.674 con 3 cluster
+
+Podemos ver que el que tuvo mejor puntación de calidad de agrupamiento fue para kemans con dos clusters. Si comparamos para tres clusters K-means queda con peor score siendo DBSCAN eps_cl=0.6 :  0.674 con 3 cluster la mejor opción. 
+
+## Pros y contras de K-means y DBSCAN
+
+En el algoritmo k-means se necesita predeterminar el número de clusters; esto no sucede con DBSCAN ya que se obtiene mediante la baja o alta densidad de puntos concentrados en áreas.
+
+Para DBSCAN necesitamos determinar la densidad apropiada para los parámetros epsilon y minpts, esta tarea es más compleja porque depende del conocimiento del dominio y el conjunto de datos que se aportan al algoritmo.
+
+El algortimo k-means crea clusters de forma más o menos esférica o convexa y deberían tener el mimso tamaño de caracteristicas, en cambio DBSCAN los clusyters que forman son más aleatorios y sus tamaños no tiene por qué ser igual a sus caracteristicas, odea es capaz de identificar clusteres de cualquier forma geométrica, en cambio k-means sólo lo hace de forma circular.
+
+## Conclusiones
+
+Comenzamos el trabajo con un conjunto de datos proporcionado en la PEC con 908 obs. of  19 variables. donde se miden de forma aleatoria diferentes atributis de tres especies de halcones. Hemos trabajado métodos de clasificación no supervisada para cuatro variables numéricas (Wing, Weight, Culmen y Hallux) sabiendo de ante mano cuál era la clasificación por especie. Por cada método de clasificación trabajado se ha evaluado su calidad de agrupamiento tanto de centro como de lejanía. Estas medidas nos han proporcionado información para saber qué tan bien o mal se clasifican y basándonos en esto la mejor clasificación obtenida ha sido para k-mean con dos clusters con un puntaje avg siluette de 0.7764635, la decisión para evaluar en dos clusters deriva del análisis preliminar de consenso. La sengunda mejor puntuación avg siluette es para  DBSCAN eps_cl=0.6 :  0.674 con 3 cluster. K-means para 3 clusters ha proporcinado un score bastante más bajo de 0.502
+
+# 
+
+## Ventajas k-means y DBSCAN
+
+**K-MEANS :**
+
+VENTAJAS
+
+* Relativamente fácil de implementar.
+* Escala a grandes conjuntos de datos.
+* Garantiza la convergencia.
+* Puede iniciar en caliente las posiciones de los centroides.
+* Se adapta con facilidad a los ejemplos nuevos.
+* Se generaliza a clústeres de diferentes formas y tamaños, como clústeres elípticos.
+
+DESVENTAJAS
+
+* Elige K clusters manualmente.
+* Depende de los valores iniciales.
+* No es bueno con el agrupamiento de datos de diferentes tamaños y densidades.
+* Valores atípicos del agrupamiento en clústeres.
+* Escalamiento con cantidad de dimensiones
+
+APLICACIONES
+
+* Geostático 
+* Visión computacional 
+* Segmentación de mercado 
+ Estudio de terremotos 
+ * Uso de suelo
+
+
+**DBSCAN :**
+
+VENTAJAS
+
+* no requiere especificar el número de grupos en los datos a priori, a diferencia de k-medias. 
+* DBSCAN puede encontrar grupos de forma arbitraria. 
+* Incluso puede encontrar un clúster completamente rodeado por (pero no conectado a) un clúster diferente.
+* Robusto frente a la detección de valores atípicos (ruido)
+* Requiere solo dos puntos que son muy insensibles al orden de los puntos en la base de datos
+
+DESVENTAJAS : 
+
+* Los conjuntos de datos con densidades alteradas son complicados.
+* Sensible a los parámetros de agrupamiento en puntos y EPS.
+* No puede identificar el agrupamiento si la densidad varía y si el conjunto de datos es demasiado disperso.
+* El algoritmo es muy sensible a los hiperparámetros, con un pequeño cambio en Eps podemos observar una gran diferencia en la formación de clusters.
+
+APLICACIONES
+
+* literatura científica 
+* Imágenes de satélite 
+* Cristalografía de rayos x 
+* Detección de anomalías en los datos de temperatura
+
+
+## Medidas para mitigar las desventajas
+
+**K-MEANS :**
+
+MEJORAS EN DESVENTAJAS
+
+* Elige K clusters manualmente. --> k-means requiere que decidas la cantidad de clústeres  de antemano. Usa el gráfico de "pérdida frente a clústeres" para encontrar la mejor (k). Este lineamiento no señala un valor exacto para un valor óptimo, sino solo un valor aproximado. Si prefieres clústeres más detallados, puedes elegir una  superior con este gráfico como guía.
+
+* Depende de los valores iniciales. --> Para un k bajo, se puede mitigar esta dependencia si ejecutas k-means varias veces con diferentes valores iniciales y elegimos el mejor resultado. A medida que aumenta, necesitamos versiones avanzadas de k-means para elegir mejores valores de los centroides iniciales. Fuente : A Comparative Study of Efficient Initialization Methods for the K-Means Clustering Algorithm de M. Emre Celebi, Hassan A. Kingravi, Patricio A. Vela.
+
+* No es bueno con el agrupamiento de datos de diferentes tamaños y densidades. --> se debe usar una métrica de distancia que esté mejor equipada para manejar grupos no esféricos, se adaptará el algoritmo K-Means para utilizar la métrica de distancia de Mahalanobis en lugar de la métrica de distancia euclidiana. La métrica de distancia de Mahalanobis permitirá K-Medios para identificar y clasificar correctamente grupos no homogéneos y no esféricos.
+
+* Valores atípicos del agrupamiento en clústeres.  --> Los centroides pueden ser arrastrados por valores atípicos, o bien los valores atípicos pueden obtener su propio clúster en lugar de ignorarlos. Hay que considerar quitar o recortar valores atípicos antes del agrupamiento en clústeres.
+
+* Escalamiento con cantidad de dimensiones --> A medida que aumenta el número de dimensiones, una medida de similitud basada en la distancia converge a un valor constante entre los ejemplos dados. Habría que intentar reducir la dimensionalidad con PCA en los datos de atributos o con el “agrupamiento en clústeres espectral” para modificar el algoritmo de agrupamiento.
+
+
+**DBSCAN :**
+
+MEJORAS EN DESVENTAJAS
+
+* Los conjuntos de datos con densidades alteradas son complicados. --> Podemos evitar este problema tomando el conjunto de datos donde haya menos variaciones en las densidades.
+* Sensible a los parámetros de agrupamiento en puntos y EPS. --> OPTICS puede verse como una generalización de DBSCAN que reemplaza el parámetro con un valor máximo que afecta principalmente al rendimiento. MinPts entonces se convierte esencialmente en el tamaño de clúster mínimo para encontrar.
+* No puede identificar el agrupamiento si la densidad varía y si el conjunto de datos es demasiado disperso. --> Podemos evitar este problema tomando el conjunto de datos donde haya menos variaciones en las densidades.
+El algoritmo es muy sensible a los hiperparámetros, con un pequeño cambio en Eps podemos observar una gran diferencia en la formación de clusters. --> Podemos evitar este problema tomando el conjunto de datos donde haya menos variaciones en las densidades.
+
+---
+
+Fuentes : 
+
+* https://www.researchgate.net/publication/271520302_Performance_Evaluation_of_Clustering_Algorithm_Using_Different_Datasets
+* https://ieeexplore.ieee.org/document/7732167 
+* https://www.semanticscholar.org/paper/Faster-Mahalanobis-K-means-clustering-for-Gaussian-Chokniwal-Singh/c2b44713cf75a196fef3e651c6ae8001fa65f24d
+* https://www.sciencedirect.com/science/article/pii/S0167715213003246
+* https://library.ndsu.edu/ir/bitstream/handle/10365/26766/On%20K-Means%20Clustering%20Using%20Mahalanobis%20Distance.pdf?sequence=1
+* https://link.springer.com/chapter/10.1007/978-3-031-12670-3_23
+* https://developers.google.com/machine-learning/clustering/clustering-algorithms
+
