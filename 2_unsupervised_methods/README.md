@@ -1,6 +1,6 @@
 
 
-| :key:  [Visita este enlace](https://htmlpreview.github.io/?https://github.com/alexjust-data/Data_mining/blob/main/2_unsupervised_methods/unsupervised_methods.htmll) |
+| :key:  [Visita este enlace](https://htmlpreview.github.io/?https://github.com/alexjust-data/Data_mining/blob/main/2_unsupervised_methods/unsupervised_methods.html) |
 | --- |
 
 # temas 
