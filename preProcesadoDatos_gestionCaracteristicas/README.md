@@ -1,10 +1,6 @@
 
-# temas
-
-<div style="background-color: #E6F4FA; padding: 10px; border: 1px solid #B3D4E7;">
-  <a href="https://htmlpreview.github.io/?https://github.com/alexjust-data/Data_mining/blob/main/preProcesadoDatos_gestionCaracteristicas/preProcesadoDatos_gestionCaracteristicas.html">Visita este enlace</a>
-</div>
-
+# temas :key: :arrow_right: | [![Visita este enlace]([URL_DE_TU_IMAGEN](https://htmlpreview.github.io/?https://github.com/alexjust-data/Data_mining/blob/main/preProcesadoDatos_gestionCaracteristicas/preProcesadoDatos_gestionCaracteristicas.html))] |
+| --- |
 
 * “El proceso de minería de datos” 
 * “Preprocesado de los datos y gestión de características”.
