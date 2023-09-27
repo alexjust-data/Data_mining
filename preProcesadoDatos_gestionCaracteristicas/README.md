@@ -1,5 +1,6 @@
 
-:key: | [Visita este enlace](https://htmlpreview.github.io/?https://github.com/alexjust-data/Data_mining/blob/main/preProcesadoDatos_gestionCaracteristicas/preProcesadoDatos_gestionCaracteristicas.html) |
+
+| :key:  [Visita este enlace](https://htmlpreview.github.io/?https://github.com/alexjust-data/Data_mining/blob/main/preProcesadoDatos_gestionCaracteristicas/preProcesadoDatos_gestionCaracteristicas.html) |
 | --- |
 
 # temas 
